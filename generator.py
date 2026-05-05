@@ -25,18 +25,25 @@ class Generator:
 
         self.model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
 
-    def _build_messages(self, user_query: str, retrieved_docs: dict) -> list[dict]:
+    def _build_messages(self, dialog_history: list[str], retrieved_docs: dict) -> list[dict]:
         docs = retrieved_docs.get("documents", [[]])[0]
         context = "\n\n".join(f"[Document {i + 1}]: {doc}" for i, doc in enumerate(docs))
-        return [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_query}"},
-        ]
 
-    def generate(self, user_query: str, retrieved_docs: dict) -> str:
-        messages = self._build_messages(user_query, retrieved_docs)
+        # inject context into system prompt so it's available across all turns
+        system = f"{_SYSTEM_PROMPT}\n\nContext:\n{context}"
+        messages = [{"role": "system", "content": system}]
 
-        print("messages: s", messages)
+        # rebuild conversation turns (dialog_history alternates user/assistant)
+        roles = ["user", "assistant"]
+        for i, turn in enumerate(dialog_history):
+            messages.append({"role": roles[i % 2], "content": turn})
+
+        return messages
+
+    def generate(self, dialog_history: list[str], retrieved_docs: dict) -> str:
+        messages = self._build_messages(dialog_history, retrieved_docs)
+
+        print(f"\n[GENERATOR] Sending {len(messages) - 1} turns to LLM (excl. system message)")
 
         input_ids = self.tokenizer.apply_chat_template(
             messages,
@@ -44,9 +51,13 @@ class Generator:
             return_tensors="pt",
         ).to(self.model.device)
 
+        attention_mask = torch.ones_like(input_ids)
+
         with torch.no_grad():
             output_ids = self.model.generate(
                 input_ids,
+                attention_mask=attention_mask,
+                pad_token_id=self.tokenizer.eos_token_id,
                 max_new_tokens=self.max_new_tokens,
                 do_sample=False,
             )

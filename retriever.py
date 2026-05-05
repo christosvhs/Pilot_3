@@ -47,8 +47,20 @@ class Retriever:
 
     def retrieve(self, dialog_history: list[str], n_results: int = None) -> dict:
         text = [" [SEP] ".join(dialog_history)]
+
+        print(f"\n[RETRIEVER] Input query:\n  {text[0]}")
+
         embedding = self.generate_embedding(text)
-        return self.collection.query(
+        results = self.collection.query(
             query_embeddings=[embedding],
             n_results=n_results or self.n_results,
+            include=["documents", "distances"],
         )
+
+        docs = results.get("documents", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+        print(f"\n[RETRIEVER] Retrieved {len(docs)} documents (lower distance = more similar):")
+        for i, (doc, dist) in enumerate(zip(docs, distances)):
+            print(f"  [{i + 1}] distance={dist:.4f} | {doc}")
+
+        return results

@@ -16,7 +16,7 @@ class RAGPipeline:
     def run(self, dialog_history: list[str]) -> dict:
         user_query = dialog_history[-1]
         retrieved = self.retriever.retrieve(dialog_history)
-        response = self.generator.generate(user_query, retrieved)
+        response = self.generator.generate(dialog_history, retrieved)
         return {
             "query": user_query,
             "retrieved_documents": retrieved,
