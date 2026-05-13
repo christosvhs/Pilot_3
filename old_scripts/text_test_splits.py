@@ -28,6 +28,7 @@ dataframe_path = '/scratch/NLU/cvlachos/SCQA/Samu_XLSR_finetuning/data/step4_fix
 output_dir = '/scratch/NLU/cvlachos/SCQA/Models_of_Samu_XLSR_finetuning/fine_tuned_text_implicit_model_doc2dialsplit_'+splitstr
 batch_size = 1
 
+df = pd.read_parquet(dataframe_path)
 
 if not os.path.exists(output_dir) : os.makedirs(output_dir)
 

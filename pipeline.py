@@ -6,7 +6,7 @@ class RAGPipeline:
     def __init__(
         self,
         model_dir: str = DEFAULT_MODEL_DIR,
-        n_results: int = 10,
+        n_results: int = 20,
         llm_model: str = DEFAULT_MODEL,
         load_in_4bit: bool = False,
     ):
