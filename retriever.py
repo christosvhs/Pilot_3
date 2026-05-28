@@ -7,21 +7,35 @@ from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import batch_to_device
 
 LABSE_MODEL_NAME = "sentence-transformers/LaBSE"
-DEFAULT_MODEL_DIR = "/scratch/NLU/cvlachos/SCQA/Models_of_Samu_XLSR_finetuning/fine_tuned_text_implicit_model_doc2dialsplit_0_500"
-CHROMA_DB_PATH = "/scratch/NLU/cvlachos/SCQA/Samu_XLSR_finetuning/data/chroma_db"
+DEFAULT_MODEL_DIR = os.environ.get(
+    "CHECKPOINT_DIR",
+    "/scratch/NLU/cvlachos/SCQA/Models_of_Samu_XLSR_finetuning/fine_tuned_text_implicit_model_doc2dialsplit_0_500",
+)
+CHROMA_DB_PATH = os.environ.get(
+    "CHROMA_DB_PATH",
+    "/scratch/NLU/cvlachos/SCQA/Samu_XLSR_finetuning/data/chroma_db",
+)
 COLLECTION_NAME = "propositions_VS"
 
 _device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class Retriever:
-    def __init__(self, model_dir: str = DEFAULT_MODEL_DIR, n_results: int = 10):
+    def __init__(
+        self,
+        model_dir: str = DEFAULT_MODEL_DIR,
+        n_results: int = 10,
+        use_finetuned: bool = True,
+        max_distance: float = 0.60,
+    ):
         self.n_results = n_results
+        self.use_finetuned = use_finetuned
+        self.max_distance = max_distance
 
         self.model = SentenceTransformer(LABSE_MODEL_NAME).to(_device)
         self.model.tokenizer.truncation_side = "left"
 
-        if "best.pt" in os.listdir(model_dir):
+        if use_finetuned and "best.pt" in os.listdir(model_dir):
             checkpoint = torch.load(
                 os.path.join(model_dir, "best.pt"),
                 map_location=torch.device(_device),
@@ -48,19 +62,35 @@ class Retriever:
     def retrieve(self, dialog_history: list[str], n_results: int = None) -> dict:
         text = [" [SEP] ".join(dialog_history)]
 
-        print(f"\n[RETRIEVER] Input query:\n  {text[0]}")
+        tag = "finetuned" if self.use_finetuned else "baseline"
+        print(f"\n[RETRIEVER:{tag}] Input query:\n  {text[0]}")
 
         embedding = self.generate_embedding(text)
-        results = self.collection.query(
+        raw = self.collection.query(
             query_embeddings=[embedding],
             n_results=n_results or self.n_results,
             include=["documents", "distances"],
         )
 
-        docs = results.get("documents", [[]])[0]
-        distances = results.get("distances", [[]])[0]
-        print(f"\n[RETRIEVER] Retrieved {len(docs)} documents (lower distance = more similar):")
-        for i, (doc, dist) in enumerate(zip(docs, distances)):
+        raw_docs = raw.get("documents", [[]])[0]
+        raw_dists = raw.get("distances", [[]])[0]
+
+        docs, dists = [], []
+        seen = set()
+        for doc, dist in zip(raw_docs, raw_dists):
+            if dist > self.max_distance:
+                continue
+            if doc in seen:
+                continue
+            seen.add(doc)
+            docs.append(doc)
+            dists.append(dist)
+
+        print(
+            f"\n[RETRIEVER:{tag}] Kept {len(docs)} of {len(raw_docs)} documents "
+            f"(distance<={self.max_distance}, deduplicated):"
+        )
+        for i, (doc, dist) in enumerate(zip(docs, dists)):
             print(f"  [{i + 1}] distance={dist:.4f} | {doc}")
 
-        return results
+        return {"documents": [docs], "distances": [dists]}
