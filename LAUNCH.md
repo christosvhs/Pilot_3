@@ -105,6 +105,61 @@ http://localhost:19000
 1. In the tunnel terminal on your Mac: `Ctrl+C`
 2. In each tmux pane on the GPU node: `Ctrl+C`
 
+---
+
+## Alternative: Docker
+
+If Docker and the NVIDIA Container Toolkit are available on the GPU node, the whole stack (server + UI) can be brought up with `docker compose` instead of steps 2–4 above. Steps 1 (connect), 5 (SSH tunnel) and 6 (browser) are unchanged.
+
+### Prerequisites
+
+- `docker` and `docker compose` installed
+- `nvidia-container-toolkit` (so the container can see the GPU)
+- A local directory for the HuggingFace cache (avoid Lustre — see notes below)
+
+### Step 2-D — Set the HF cache location
+
+`docker-compose.yml` mounts the host's HF cache into the container via the `HF_CACHE_DIR` env var. Point it at a local directory on the GPU node (avoid Lustre paths like `/scratch/...` to prevent the mmap/OST errors we've hit):
+
+```bash
+mkdir -p /tmp/hf_cache
+export HF_CACHE_DIR=/tmp/hf_cache
+```
+
+> First run downloads Salamandra (~14.7 GB) and LaBSE (~470 MB) into this directory — expect 5–20 minutes depending on bandwidth. Subsequent runs reuse the cache.
+> `/tmp` is ephemeral on spot nodes, so repeat this step on each new node (or pick a persistent local path if one is available).
+
+### Step 3-D — Build and start the stack
+
+From the project directory on the GPU node:
+
+```bash
+cd /workspace/NLU/cvlachos/Pilot_3
+docker compose up --build
+```
+
+This builds the image (first time only — a few minutes) and starts two containers:
+- `pilot3-server` → FastAPI on port `8000` (internal-only, never exposed)
+- `pilot3-ui` → Gradio on port `19000` (the only port the SSH tunnel needs)
+
+Wait for the server to print `Uvicorn running on http://0.0.0.0:8000` and the UI to print `Running on local URL: http://0.0.0.0:19000`. From here, jump to Step 5.
+
+### Detached mode and shutdown
+
+To run in the background:
+
+```bash
+docker compose up -d --build
+docker compose logs -f          # tail logs
+```
+
+To stop:
+
+```bash
+docker compose down
+```
+
+---
 
 ## Interesting cases to check
 Test case ids: 20, 75, 212 (kinda)
