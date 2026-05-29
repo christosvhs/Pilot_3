@@ -1,20 +1,19 @@
 import threading
 
-from retriever import Retriever, DEFAULT_MODEL_DIR
+from retriever import Retriever
 from generator import Generator, AVAILABLE_MODELS
 
 
 class RAGPipeline:
     def __init__(
         self,
-        model_dir: str = DEFAULT_MODEL_DIR,
         n_results: int = 20,
         default_llm: str = "salamandra",
         load_in_4bit: bool = False,
     ):
         self.retrievers = {
-            "finetuned": Retriever(model_dir=model_dir, n_results=n_results, use_finetuned=True),
-            "baseline": Retriever(model_dir=model_dir, n_results=n_results, use_finetuned=False),
+            "finetuned": Retriever(n_results=n_results, use_finetuned=True),
+            "baseline": Retriever(n_results=n_results, use_finetuned=False),
         }
         self.load_in_4bit = load_in_4bit
         self.current_llm = default_llm

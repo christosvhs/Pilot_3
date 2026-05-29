@@ -72,14 +72,24 @@ def _call_pipeline(dialog_history: list[str], retriever_type: str, llm_type: str
         return {"response": f"Error: {e}", "retrieved_documents": {}}
 
 
-def _format_docs(retrieved: dict) -> str:
-    docs = retrieved.get("documents", [[]])
-    dists = retrieved.get("distances", [[]])
-    if not docs or not docs[0]:
+def _format_docs(retrieved: dict, search_text: str = "") -> str:
+    docs_l = retrieved.get("documents", [[]]) if retrieved else [[]]
+    dists_l = retrieved.get("distances", [[]]) if retrieved else [[]]
+    if not docs_l or not docs_l[0]:
         return ""
-    docs, dists = docs[0], dists[0]
+    docs, dists = docs_l[0], dists_l[0]
+
+    s = (search_text or "").strip().lower()
+    indexed = enumerate(zip(docs, dists))
+    if s:
+        triples = [(i, d, dist) for i, (d, dist) in indexed if s in d.lower()]
+    else:
+        triples = [(i, d, dist) for i, (d, dist) in indexed]
+
+    if not triples:
+        return "(No documents match the filter)"
     return "\n\n".join(
-        f"[{i + 1}] distance={d:.4f}\n{doc}" for i, (doc, d) in enumerate(zip(docs, dists))
+        f"[{i + 1}] distance={dist:.4f}\n{doc}" for i, doc, dist in triples
     )
 
 
@@ -89,26 +99,33 @@ def send_message(
     dialog_history: list[str],
     retriever_type: str,
     llm_type: str,
+    _search_text: str,
+    _raw_docs: dict,
 ):
     message = message.strip()
     if not message:
-        return chatbot, dialog_history, "", ""
+        return chatbot, dialog_history, "", "", _raw_docs, ""
 
     dialog_history = dialog_history + [message]
     result = _call_pipeline(dialog_history, retriever_type, llm_type)
     response = result["response"]
-    docs_text = _format_docs(result.get("retrieved_documents", {}))
+    retrieved = result.get("retrieved_documents", {})
+    docs_text = _format_docs(retrieved, "")
     dialog_history = dialog_history + [response]
 
     chatbot = chatbot + [
         {"role": "user", "content": message},
         {"role": "assistant", "content": response},
     ]
-    return chatbot, dialog_history, "", docs_text
+    return chatbot, dialog_history, "", docs_text, retrieved, ""
+
+
+def filter_docs(search_text: str, raw_docs: dict):
+    return _format_docs(raw_docs, search_text)
 
 
 def clear_chat():
-    return [], [], "", ""
+    return [], [], "", "", {}, ""
 
 
 def _ui_state(status: str, interactive: bool):
@@ -165,6 +182,7 @@ def switch_llm(llm_type: str):
 with gr.Blocks(theme=gr.themes.Soft(), css=_CSS, title="Call Center Assistant") as demo:
 
     dialog_history = gr.State([])
+    raw_docs_state = gr.State({})
 
     gr.Markdown(
         "# 🏢 Call Center Assistant — Powered by LLM + RAG + Advanced NLP",
@@ -214,6 +232,11 @@ with gr.Blocks(theme=gr.themes.Soft(), css=_CSS, title="Call Center Assistant") 
             )
             llm_status = gr.HTML("✅ Llama-Krikri-8B-Instruct ready")
 
+            docs_search = gr.Textbox(
+                label="Filter retrieved documents",
+                placeholder="Type to filter documents by text...",
+                show_label=False,
+            )
             docs_panel = gr.Textbox(
                 label="Retrieved Documents",
                 lines=20,
@@ -227,17 +250,23 @@ with gr.Blocks(theme=gr.themes.Soft(), css=_CSS, title="Call Center Assistant") 
 
     send_btn.click(
         send_message,
-        inputs=[msg_input, chatbot, dialog_history, retriever_choice, llm_choice],
-        outputs=[chatbot, dialog_history, msg_input, docs_panel],
+        inputs=[msg_input, chatbot, dialog_history, retriever_choice, llm_choice, docs_search, raw_docs_state],
+        outputs=[chatbot, dialog_history, msg_input, docs_panel, raw_docs_state, docs_search],
     )
     msg_input.submit(
         send_message,
-        inputs=[msg_input, chatbot, dialog_history, retriever_choice, llm_choice],
-        outputs=[chatbot, dialog_history, msg_input, docs_panel],
+        inputs=[msg_input, chatbot, dialog_history, retriever_choice, llm_choice, docs_search, raw_docs_state],
+        outputs=[chatbot, dialog_history, msg_input, docs_panel, raw_docs_state, docs_search],
     )
     clear_btn.click(
         clear_chat,
-        outputs=[chatbot, dialog_history, msg_input, docs_panel],
+        outputs=[chatbot, dialog_history, msg_input, docs_panel, raw_docs_state, docs_search],
+    )
+
+    docs_search.change(
+        filter_docs,
+        inputs=[docs_search, raw_docs_state],
+        outputs=[docs_panel],
     )
 
     llm_choice.change(

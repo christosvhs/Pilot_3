@@ -107,5 +107,4 @@ http://localhost:19000
 
 
 ## Interesting cases to check
-
-Test case ids: 20, 212, 213
+Test case ids: 20, 75, 212 (kinda)

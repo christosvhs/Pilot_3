@@ -14,3 +14,4 @@ LAUNCH.md
 .DS_Store
 .vscode
 .idea
+convert_checkpoint.py
