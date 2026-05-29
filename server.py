@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from pipeline import RAGPipeline
 
 app = FastAPI(title="RAG Pipeline API")
-pipeline = RAGPipeline(default_llm="krikri")
+pipeline = RAGPipeline(default_llm="salamandra")
 
 
 class QueryRequest(BaseModel):

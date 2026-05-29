@@ -16,18 +16,17 @@ _LLM_LABELS = {
 _WELCOME_MD = """
 ## Welcome to the Call Center Assistant!
 
-I can help you with:
-- **General Inquiries**: Answer questions about products, services, and policies
-- **Account Support**: Help with account-related questions and information
-- **Technical Assistance**: Guide you through technical or procedural issues
-- **Information Lookup**: Retrieve relevant information from the knowledge base
+I can help you with questions on the following US public-service domains:
+- **Driver & Vehicle Services (DMV)**: Licenses, road tests, vehicle registration, plates, hearings
+- **Social Security (SSA)**: Retirement benefits, disability programs, survivor planning
+- **Student Financial Aid**: Loans, deferment, repayment, rehabilitation
+- **Veterans Affairs (VA)**: Health care, disability claims, education benefits, rehabilitation services
 """
 
 _ARCHITECTURE_MD = """
-**Architecture:**
-- Non-transactional: RAG + LLM
-- Transactional: NER + LLM + API
-- Response Analysis: XLM-T / GLiNER2
+**Architecture (RAG):**
+- Retriever: LaBSE (out-of-the-box)
+- Generator: Salamandra-7B-Instruct
 """
 
 _CSS = """
@@ -165,6 +164,19 @@ def wait_for_server():
 
 
 def switch_llm(llm_type: str):
+    # WIP — revert to salamandra and notify
+    if llm_type == "krikri":
+        gr.Warning("Llama-Krikri-8B-Instruct is still WIP and not selectable yet.")
+        yield (
+            "✅ Salamandra-7B-Instruct ready",
+            gr.update(interactive=True),  # msg_input
+            gr.update(interactive=True),  # send_btn
+            gr.update(interactive=True),  # clear_btn
+            gr.update(value="salamandra", interactive=True),  # llm_choice
+            gr.update(interactive=True),  # retriever_choice
+        )
+        return
+
     label = _LLM_LABELS.get(llm_type, llm_type)
     loading = (
         f'<span class="spinner"></span>'
@@ -177,6 +189,14 @@ def switch_llm(llm_type: str):
         yield _ui_state(f"✅ {label} ready", interactive=True)
     except Exception as e:
         yield _ui_state(f"❌ Failed to load {label}: {e}", interactive=True)
+
+
+def enforce_retriever(choice: str):
+    # WIP — revert to baseline and notify
+    if choice == "finetuned":
+        gr.Warning("Fine-tuned LaBSE is still WIP and not selectable yet.")
+        return gr.update(value="baseline")
+    return gr.update()
 
 
 with gr.Blocks(theme=gr.themes.Soft(), css=_CSS, title="Call Center Assistant") as demo:
@@ -215,22 +235,22 @@ with gr.Blocks(theme=gr.themes.Soft(), css=_CSS, title="Call Center Assistant") 
 
             retriever_choice = gr.Radio(
                 choices=[
-                    ("Fine-tuned LaBSE", "finetuned"),
+                    ("Fine-tuned LaBSE (WIP)", "finetuned"),
                     ("Baseline LaBSE (out-of-the-box)", "baseline"),
                 ],
-                value="finetuned",
+                value="baseline",
                 label="Retriever",
             )
 
             llm_choice = gr.Radio(
                 choices=[
                     ("Salamandra-7B-Instruct", "salamandra"),
-                    ("Llama-Krikri-8B-Instruct", "krikri"),
+                    ("Llama-Krikri-8B-Instruct (WIP)", "krikri"),
                 ],
-                value="krikri",
+                value="salamandra",
                 label="LLM (switching reloads the model — first query takes ~1–2 min)",
             )
-            llm_status = gr.HTML("✅ Llama-Krikri-8B-Instruct ready")
+            llm_status = gr.HTML("✅ Salamandra-7B-Instruct ready")
 
             docs_search = gr.Textbox(
                 label="Filter retrieved documents",
@@ -267,6 +287,12 @@ with gr.Blocks(theme=gr.themes.Soft(), css=_CSS, title="Call Center Assistant") 
         filter_docs,
         inputs=[docs_search, raw_docs_state],
         outputs=[docs_panel],
+    )
+
+    retriever_choice.change(
+        enforce_retriever,
+        inputs=[retriever_choice],
+        outputs=[retriever_choice],
     )
 
     llm_choice.change(
