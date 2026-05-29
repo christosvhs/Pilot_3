@@ -4,11 +4,9 @@ services:
     image: pilot3-rag:latest
     container_name: pilot3-server
     environment:
-      - CHROMA_DB_PATH=/data/chroma_db
       - HF_HOME=/root/.cache/huggingface
     volumes:
       - .:/app
-      - ${CHROMA_DB_PATH}:/data/chroma_db
       - ${HF_CACHE_DIR}:/root/.cache/huggingface
     ports:
       - "8000:8000"

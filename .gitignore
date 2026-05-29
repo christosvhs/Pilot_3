@@ -2,3 +2,5 @@
 .uvenv/
 __pycache__/
 convert_checkpoint.py
+Test_IR_baseline.ipynb
+old_scripts/

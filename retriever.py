@@ -8,9 +8,10 @@ from sentence_transformers.util import batch_to_device
 
 LABSE_MODEL_NAME = "sentence-transformers/LaBSE"
 FINETUNED_MODEL_ID = os.environ.get("FINETUNED_MODEL_ID", "Cutting3dg3/LaBSE-TID")
+_HERE = os.path.dirname(os.path.abspath(__file__))
 CHROMA_DB_PATH = os.environ.get(
     "CHROMA_DB_PATH",
-    "/scratch/NLU/cvlachos/SCQA/Samu_XLSR_finetuning/data/chroma_db",
+    os.path.join(_HERE, "data", "chroma_db"),
 )
 COLLECTION_NAME = "propositions_VS"
 
